@@ -19,7 +19,7 @@ contract Game is IGame {
     uint public betSize;
 
     uint32 phaseExpiration;
-    uint8 expiration;
+    uint16 expiration;
     bool public gameClosed;
 
     enum Phase {
@@ -40,7 +40,7 @@ contract Game is IGame {
         _;
     }
 
-    constructor(uint8 _expiration) {
+    constructor(uint16 _expiration) {
         expiration = _expiration;
     }
 
@@ -94,7 +94,6 @@ contract Game is IGame {
         external
         payable
         whenNotClosed
-        onlyParticipants
     {
         require(phase == Phase.Participate);
         if (player1.player == address(0)) {
