@@ -155,10 +155,10 @@ contract Game is IGame {
     {
         require(phase == Phase.Reveal);
         (Player storage self, Player storage opponent) = _getPlayer(msg.sender);
-        require(self.hand == RockScissorsPaperLib.Hand.Empty);
+        require(self.hand == RockScissorsPaperLib.Hand.Empty, "sender already revealed");
 
         _checkPhaseExpired(msg.sender);
-        require(_checkCommit(self.commit, _hand, _salt));
+        require(_checkCommit(self.commit, _hand, _salt), "your reveal is wrong");
         self.hand = _hand;
 
         if (opponent.hand != RockScissorsPaperLib.Hand.Empty) {
