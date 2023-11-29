@@ -30,12 +30,15 @@ contract Game {
     Phase public phase;
 
     modifier whenNotClosed() {
-        require(gameClosed == false);
+        require(gameClosed == false, "Game is already closed");
         _;
     }
 
     modifier onlyParticipants() {
-        require(player1.player == msg.sender || player2.player == msg.sender);
+        require(
+            player1.player == msg.sender || player2.player == msg.sender,
+            "msg.sender is not a participant of this game"
+        );
         _;
     }
 
@@ -64,7 +67,7 @@ contract Game {
     function _win(address _player) private {
         winner = _player;
         (bool success, ) = _player.call{value: address(this).balance}("");
-        require(success);
+        require(success, "Failed to send money to winner");
 
         gameClosed = true;
     }
@@ -94,14 +97,14 @@ contract Game {
         payable
         whenNotClosed
     {
-        require(phase == Phase.Participate);
+        require(phase == Phase.Participate, "Failed to join game, game is already in process");
         if (player1.player == address(0)) {
-            require(msg.value > 0);
+            require(msg.value > 0, "Failed due to lack of ETH");
 
             betSize = msg.value;
             player1.player = msg.sender;
         } else {
-            require(msg.value == betSize);
+            require(msg.value == betSize, "Failed due to differentbet");
 
             player2.player = msg.sender;
             _setPhase(Phase.Commit);
@@ -114,9 +117,9 @@ contract Game {
         whenNotClosed
         onlyParticipants
     {
-        require(phase == Phase.Commit);
+        require(phase == Phase.Commit, "Failed to commit, game phase is reveal or participate");
         (Player storage self, Player storage opponent) = _getPlayer(msg.sender);
-        require(self.commit == bytes32(0));
+        require(self.commit == bytes32(0), "msg.sender already committed");
 
         _checkPhaseExpired(msg.sender);
         self.commit = _commit;
@@ -135,14 +138,14 @@ contract Game {
         whenNotClosed
         onlyParticipants
     {
-        require(phase != Phase.Participate);
-        require(block.timestamp > phaseExpiration);
+        require(phase != Phase.Participate, "Failed to claim, game is not in process");
+        require(block.timestamp > phaseExpiration, "Failed to claim, the game phase is not expired");
 
         (, Player storage opponent) = _getPlayer(msg.sender);
 
         phase == Phase.Commit
-            ? require(opponent.commit == bytes32(0))
-            : require(opponent.hand == RockScissorsPaperLib.Hand.Empty);
+            ? require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully")
+            : require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
 
         _win(msg.sender);
     }
@@ -152,12 +155,12 @@ contract Game {
         whenNotClosed
         onlyParticipants
     {
-        require(phase == Phase.Reveal);
+        require(phase == Phase.Reveal, "Failed to reveal, game phase is commit or participate");
         (Player storage self, Player storage opponent) = _getPlayer(msg.sender);
-        require(self.hand == RockScissorsPaperLib.Hand.Empty, "sender already revealed");
+        require(self.hand == RockScissorsPaperLib.Hand.Empty, "Failed to reveal, sender already revealed");
 
         _checkPhaseExpired(msg.sender);
-        require(_checkCommit(self.commit, _hand, _salt), "your reveal is wrong");
+        require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
         self.hand = _hand;
 
         if (opponent.hand != RockScissorsPaperLib.Hand.Empty) {
@@ -183,7 +186,7 @@ contract Game {
     {
         if (phase == Phase.Participate) {
             (bool success, ) = player1.player.call{value: betSize}("");
-            require(success);
+            require(success, "Failed to send money to winner");
 
             gameClosed = true;
         } else {
