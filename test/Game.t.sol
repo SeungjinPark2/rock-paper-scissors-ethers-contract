@@ -5,19 +5,32 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "src/Game.sol";
 
-contract GameTestSuccess is Test {
+contract GameTest is Test {
     Game game;
     address p1;
     address p2;
     bytes32 salt1;
     bytes32 salt2;
+    uint16 expiration = 5 * 60;
 
     function setUp() public {
-        game = new Game(5 * 60);
+        game = new Game(expiration);
         p1 = address(111);
         p2 = address(222);
+        salt1 = keccak256(abi.encodePacked(uint(1)));
+        salt2 = keccak256(abi.encodePacked(uint(1)));
+        setCommit(RockScissorsPaperLib.Hand.Rock, RockScissorsPaperLib.Hand.Paper);
         vm.deal(p1, 10 ether);
         vm.deal(p2, 10 ether);
+    }
+
+    function setCommit(RockScissorsPaperLib.Hand _hand1, RockScissorsPaperLib.Hand _hand2)
+        internal
+        view
+        returns (bytes32 _commit1, bytes32 _commit2)
+    {
+        _commit1 = keccak256(abi.encodePacked(_hand1, salt1));
+        _commit2 = keccak256(abi.encodePacked(_hand2, salt2));
     }
 
     // init with proper values
@@ -44,24 +57,24 @@ contract GameTestSuccess is Test {
     // test commit funciton
     function test_CommitSuccess() public {
         test_ParticipateSuccess();
-        salt1 = keccak256(abi.encodePacked(uint(1)));
-        salt2 = keccak256(abi.encodePacked(uint(1)));
-        bytes32 commit1 = keccak256(abi.encodePacked(RockScissorsPaperLib.Hand.Rock, salt1));
-        bytes32 commit2 = keccak256(abi.encodePacked(RockScissorsPaperLib.Hand.Paper, salt2));
+        (bytes32 _commit1, bytes32 _commit2) = setCommit(
+            RockScissorsPaperLib.Hand.Rock,
+            RockScissorsPaperLib.Hand.Paper
+        ); 
 
         // commit p1 with rock
         vm.prank(p1);
-        game.commit(commit1);
+        game.commit(_commit1);
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
-        (, bytes32 _commit1,) = game.player1();
-        assertEq(_commit1, commit1);
+        (, bytes32 __commit1,) = game.player1();
+        assertEq(__commit1, _commit1);
 
         // commit p2 with paper
         vm.prank(p2);
-        game.commit(commit2);
+        game.commit(_commit2);
         assertEq(uint(game.phase()), uint(Game.Phase.Reveal));
-        (, bytes32 _commit2,) = game.player2();
-        assertEq(_commit2, commit2);
+        (, bytes32 __commit2,) = game.player2();
+        assertEq(__commit2, _commit2);
     }
 
     // test reveal
@@ -82,8 +95,57 @@ contract GameTestSuccess is Test {
         assertEq(p2.balance, p1.balance + game.betSize() * 2);
     }
 
-    function test_ClaimSuccess() public {
+    // p1 reveals but p2 does not
+    function test_ClaimSuccessOnRevealPhase() public {
+        test_CommitSuccess();
+        vm.prank(p1);
+        game.reveal(RockScissorsPaperLib.Hand.Rock, salt1);
+
+        vm.warp(block.timestamp + expiration * 2);
+        vm.prank(p1);
+        game.claim();
+        assertEq(p1.balance, 11 ether);
+        assertEq(p1, game.winner());
+    }
+
+    // p2 reveals but p1 does not
+    function test_ClaimSuccessOnCommitPhase() public {
         test_ParticipateSuccess();
+        (bytes32 _commit1, ) = setCommit(
+            RockScissorsPaperLib.Hand.Rock,
+            RockScissorsPaperLib.Hand.Paper
+        );
+
+        // commit p1 with rock
+        vm.prank(p1);
+        game.commit(_commit1);
+
+        vm.warp(block.timestamp + expiration * 2);
+        vm.prank(p1);
+        game.claim();
+        assertEq(p1.balance, 11 ether);
+        assertEq(p1, game.winner());
+    }
+
+    function test_TiedGame() public {
+        test_ParticipateSuccess();
+        (bytes32 _commit1, bytes32 _commit2) = setCommit(
+            RockScissorsPaperLib.Hand.Rock,
+            RockScissorsPaperLib.Hand.Rock
+        );
+
+        vm.prank(p1);
+        game.commit(_commit1);
+        vm.prank(p2);
+        game.commit(_commit2);
+
+        vm.prank(p1);
+        game.reveal(RockScissorsPaperLib.Hand.Rock, salt1);
+        vm.prank(p2);
+        game.reveal(RockScissorsPaperLib.Hand.Rock, salt2);
+
+        assertEq(game.winner(), address(0));
+        assertEq(uint(game.phase()), uint(Game.Phase.Commit));
     }
 }
 
