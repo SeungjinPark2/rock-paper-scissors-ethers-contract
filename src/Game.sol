@@ -2,9 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "src/libraries/RockScissorsPaperLib.sol";
-import "src/interfaces/IGame.sol";
 
-contract Game is IGame {
+contract Game {
     using RockScissorsPaperLib for RockScissorsPaperLib.Hand;
 
     struct Player {
