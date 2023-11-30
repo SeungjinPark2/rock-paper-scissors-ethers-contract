@@ -47,8 +47,11 @@ contract Game {
         _;
     }
 
-    constructor(uint16 _expiration) {
+    constructor(uint16 _expiration, address _gameCreator) payable {
+        require(msg.value > 0);
         expiration = _expiration;
+        betSize = msg.value;
+        player1.player = _gameCreator;
     }
 
     function _setPhase(Phase _phase) private {
@@ -106,20 +109,12 @@ contract Game {
         whenNotClosed
     {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
-        if (player1.player == address(0)) {
-            require(msg.value > 0, "Failed due to lack of ETH");
+        require(msg.value == betSize, "Failed to join game, different bet");
 
-            betSize = msg.value;
-            player1.player = msg.sender;
-            emit UpdatePlayer(player1.player, player1.commit, player1.hand);
-        } else {
-            require(msg.value == betSize, "Failed due to differentbet");
-
-            player2.player = msg.sender;
-            emit UpdatePlayer(player2.player, player2.commit, player2.hand);
-            _setPhase(Phase.Commit);
-            _setPhaseExpiration();
-        }
+        player2.player = msg.sender;
+        emit UpdatePlayer(player2.player, player2.commit, player2.hand);
+        _setPhase(Phase.Commit);
+        _setPhaseExpiration();
     }
 
     function commit(bytes32 _commit)

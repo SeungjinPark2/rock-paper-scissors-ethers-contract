@@ -15,17 +15,18 @@ contract GameTest is Test {
 
     event PhaseChanged(Game.Phase phase);
     event Winner(address winner, uint prize);
-    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand); 
+    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
 
     function setUp() public {
-        game = new Game(expiration);
         p1 = address(111);
         p2 = address(222);
+        vm.deal(p1, 10 ether);
+        vm.deal(p2, 10 ether);
+        vm.prank(p1);
+        game = new Game{value: 1 ether}(expiration, p1);
         salt1 = keccak256(abi.encodePacked(uint(1)));
         salt2 = keccak256(abi.encodePacked(uint(1)));
         setCommit(RockScissorsPaperLib.Hand.Rock, RockScissorsPaperLib.Hand.Paper);
-        vm.deal(p1, 10 ether);
-        vm.deal(p2, 10 ether);
     }
 
     function setCommit(RockScissorsPaperLib.Hand _hand1, RockScissorsPaperLib.Hand _hand2)
@@ -40,22 +41,19 @@ contract GameTest is Test {
     // init with proper values
     function test_Initialization() public {
         (address addr1,,) = game.player1();
-        assertEq(addr1, address(0));
+        assertEq(addr1, p1);
         assertEq(uint(game.phase()), uint(Game.Phase.Participate));
     }
 
     // test participate function
     function test_ParticipateSuccess() public {
-        // first user situation
-        vm.prank(p1);
-        game.participate{value: 1 ether}();
         assertEq(game.betSize(), 1 ether);
         assertEq(uint(game.phase()), uint(Game.Phase.Participate));
 
         // second user situation
-        vm.prank(p2);
         vm.expectEmit(false, false, false, true);
         emit PhaseChanged(Game.Phase.Commit);
+        vm.prank(p2);
         game.participate{value: 1 ether}();
 
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
@@ -67,12 +65,12 @@ contract GameTest is Test {
         (bytes32 _commit1, bytes32 _commit2) = setCommit(
             RockScissorsPaperLib.Hand.Rock,
             RockScissorsPaperLib.Hand.Paper
-        ); 
+        );
 
         // commit p1 with rock
-        vm.prank(p1);
         vm.expectEmit(false, false, false, true);
         emit UpdatePlayer(p1, _commit1, RockScissorsPaperLib.Hand.Empty);
+        vm.prank(p1);
         game.commit(_commit1);
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
         (, bytes32 __commit1,) = game.player1();
@@ -94,9 +92,9 @@ contract GameTest is Test {
         (,, RockScissorsPaperLib.Hand hand1) = game.player1();
         assertEq(uint(hand1), uint(RockScissorsPaperLib.Hand.Rock));
 
-        vm.prank(p2);
         vm.expectEmit(false, false, false, true);
         emit Winner(p2, 2 ether);
+        vm.prank(p2);
         game.reveal(RockScissorsPaperLib.Hand.Paper, salt2);
         (,, RockScissorsPaperLib.Hand hand2) = game.player2();
         assertEq(uint(hand2), uint(RockScissorsPaperLib.Hand.Paper));
