@@ -11,6 +11,11 @@ contract Game {
         bytes32 commit;
         RockScissorsPaperLib.Hand hand;
     }
+
+    event PhaseChanged(Phase phase);
+    event Winner(address winner, uint prize);
+    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
+
     Player public player1;
     Player public player2;
 
@@ -48,6 +53,7 @@ contract Game {
 
     function _setPhase(Phase _phase) private {
         phase = _phase;
+        emit PhaseChanged(phase);
     }
 
     // _opposite true to opponent, false to self
@@ -66,8 +72,10 @@ contract Game {
 
     function _win(address _player) private {
         winner = _player;
-        (bool success, ) = _player.call{value: address(this).balance}("");
+        uint _value = address(this).balance;
+        (bool success, ) = _player.call{value: _value}("");
         require(success, "Failed to send money to winner");
+        emit Winner(_player, _value);
 
         gameClosed = true;
     }
@@ -103,10 +111,12 @@ contract Game {
 
             betSize = msg.value;
             player1.player = msg.sender;
+            emit UpdatePlayer(player1.player, player1.commit, player1.hand);
         } else {
             require(msg.value == betSize, "Failed due to differentbet");
 
             player2.player = msg.sender;
+            emit UpdatePlayer(player2.player, player2.commit, player2.hand);
             _setPhase(Phase.Commit);
             _setPhaseExpiration();
         }
@@ -123,6 +133,7 @@ contract Game {
 
         _checkPhaseExpired(msg.sender);
         self.commit = _commit;
+        emit UpdatePlayer(self.player, self.commit, self.hand);
 
         // check opponent submitted commit
         if (opponent.commit != bytes32(0)) {
@@ -162,6 +173,7 @@ contract Game {
         _checkPhaseExpired(msg.sender);
         require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
         self.hand = _hand;
+        emit UpdatePlayer(self.player, self.commit, self.hand);
 
         if (opponent.hand != RockScissorsPaperLib.Hand.Empty) {
             (bool tied, bool won) = self.hand.checkWin(opponent.hand);
@@ -170,7 +182,9 @@ contract Game {
                 delete self.hand;
                 delete opponent.commit;
                 delete opponent.hand;
-                phase = Phase.Commit;
+                emit UpdatePlayer(self.player, self.commit, self.hand);
+                emit UpdatePlayer(opponent.player, opponent.commit, opponent.hand);
+                _setPhase(Phase.Commit);
             } else {
                 won == true
                     ? _win(self.player)

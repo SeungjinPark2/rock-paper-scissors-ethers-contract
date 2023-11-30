@@ -13,6 +13,10 @@ contract GameTest is Test {
     bytes32 salt2;
     uint16 expiration = 5 * 60;
 
+    event PhaseChanged(Game.Phase phase);
+    event Winner(address winner, uint prize);
+    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand); 
+
     function setUp() public {
         game = new Game(expiration);
         p1 = address(111);
@@ -50,7 +54,10 @@ contract GameTest is Test {
 
         // second user situation
         vm.prank(p2);
+        vm.expectEmit(false, false, false, true);
+        emit PhaseChanged(Game.Phase.Commit);
         game.participate{value: 1 ether}();
+
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
     }
 
@@ -64,6 +71,8 @@ contract GameTest is Test {
 
         // commit p1 with rock
         vm.prank(p1);
+        vm.expectEmit(false, false, false, true);
+        emit UpdatePlayer(p1, _commit1, RockScissorsPaperLib.Hand.Empty);
         game.commit(_commit1);
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
         (, bytes32 __commit1,) = game.player1();
@@ -86,6 +95,8 @@ contract GameTest is Test {
         assertEq(uint(hand1), uint(RockScissorsPaperLib.Hand.Rock));
 
         vm.prank(p2);
+        vm.expectEmit(false, false, false, true);
+        emit Winner(p2, 2 ether);
         game.reveal(RockScissorsPaperLib.Hand.Paper, salt2);
         (,, RockScissorsPaperLib.Hand hand2) = game.player2();
         assertEq(uint(hand2), uint(RockScissorsPaperLib.Hand.Paper));
