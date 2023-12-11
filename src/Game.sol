@@ -2,19 +2,19 @@
 pragma solidity ^0.8.20;
 
 import "src/libraries/RockScissorsPaperLib.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Game {
+contract Game is ReentrancyGuard, Context {
     using RockScissorsPaperLib for RockScissorsPaperLib.Hand;
+    using Address for address payable;
 
     struct Player {
-        address player;
+        address payable player;
         bytes32 commit;
         RockScissorsPaperLib.Hand hand;
     }
-
-    event PhaseChanged(Phase phase);
-    event Winner(address winner, uint prize);
-    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
 
     Player public player1;
     Player public player2;
@@ -34,6 +34,10 @@ contract Game {
 
     Phase public phase;
 
+    event PhaseChanged(Phase phase);
+    event Winner(address winner, uint prize);
+    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
+
     modifier whenNotClosed() {
         require(gameClosed == false, "Game is already closed");
         _;
@@ -41,7 +45,7 @@ contract Game {
 
     modifier onlyParticipants() {
         require(
-            player1.player == msg.sender || player2.player == msg.sender,
+            player1.player == _msgSender() || player2.player == _msgSender(),
             "msg.sender is not a participant of this game"
         );
         _;
@@ -51,7 +55,7 @@ contract Game {
         require(msg.value > 0);
         expiration = _expiration;
         betSize = msg.value;
-        player1.player = _gameCreator;
+        player1.player = payable(_gameCreator);
     }
 
     function _setPhase(Phase _phase) private {
@@ -73,12 +77,10 @@ contract Game {
             : player1;
     }
 
-    function _win(address _player) private {
+    function _win(address payable _player) private {
         winner = _player;
-        uint _value = address(this).balance;
-        (bool success, ) = _player.call{value: _value}("");
-        require(success, "Failed to send money to winner");
-        emit Winner(_player, _value);
+        _player.sendValue(betSize * 2);
+        emit Winner(_player, betSize * 2);
 
         gameClosed = true;
     }
@@ -111,7 +113,7 @@ contract Game {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
         require(msg.value == betSize, "Failed to join game, different bet");
 
-        player2.player = msg.sender;
+        player2.player = payable(_msgSender());
         emit UpdatePlayer(player2.player, player2.commit, player2.hand);
         _setPhase(Phase.Commit);
         _setPhaseExpiration();
@@ -123,10 +125,10 @@ contract Game {
         onlyParticipants
     {
         require(phase == Phase.Commit, "Failed to commit, game phase is reveal or participate");
-        (Player storage self, Player storage opponent) = _getPlayer(msg.sender);
+        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
         require(self.commit == bytes32(0), "msg.sender already committed");
 
-        _checkPhaseExpired(msg.sender);
+        _checkPhaseExpired(_msgSender());
         self.commit = _commit;
         emit UpdatePlayer(self.player, self.commit, self.hand);
 
@@ -143,29 +145,31 @@ contract Game {
         external
         whenNotClosed
         onlyParticipants
+        nonReentrant
     {
         require(phase != Phase.Participate, "Failed to claim, game is not in process");
         require(block.timestamp > phaseExpiration, "Failed to claim, the game phase is not expired");
 
-        (, Player storage opponent) = _getPlayer(msg.sender);
+        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
 
         phase == Phase.Commit
             ? require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully")
             : require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
 
-        _win(msg.sender);
+        _win(self.player);
     }
 
     function reveal(RockScissorsPaperLib.Hand _hand, bytes32 _salt)
         external
         whenNotClosed
         onlyParticipants
+        nonReentrant
     {
         require(phase == Phase.Reveal, "Failed to reveal, game phase is commit or participate");
-        (Player storage self, Player storage opponent) = _getPlayer(msg.sender);
+        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
         require(self.hand == RockScissorsPaperLib.Hand.Empty, "Failed to reveal, sender already revealed");
 
-        _checkPhaseExpired(msg.sender);
+        _checkPhaseExpired(_msgSender());
         require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
         self.hand = _hand;
         emit UpdatePlayer(self.player, self.commit, self.hand);
@@ -192,14 +196,13 @@ contract Game {
         external
         whenNotClosed
         onlyParticipants
+        nonReentrant
     {
         if (phase == Phase.Participate) {
-            (bool success, ) = player1.player.call{value: betSize}("");
-            require(success, "Failed to send money to winner");
-
+            player1.player.sendValue(betSize);
             gameClosed = true;
         } else {
-            (, Player storage opponent) = _getPlayer(msg.sender);
+            (, Player storage opponent) = _getPlayer(_msgSender());
             _win(opponent.player);
         }
     }
