@@ -8,6 +8,7 @@ contract PlayerManage is Context {
     struct Player {
         address payable player;
         bytes32 commit;
+        bool betDone;
         RockScissorsPaperLib.Hand hand;
     }
 
@@ -22,7 +23,7 @@ contract PlayerManage is Context {
         _;
     }
 
-    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
+    event UpdatePlayer(address indexed player, bytes32 commit, RockScissorsPaperLib.Hand hand);
 
     function _getPlayer(address _player)
         internal

@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 contract PhaseManage {
     enum Phase {
         Participate,
+        Bet,
         Commit,
         Reveal
     }

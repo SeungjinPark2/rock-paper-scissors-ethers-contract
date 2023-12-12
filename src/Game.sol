@@ -12,13 +12,27 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     using Address for address payable;
 
     uint public betSize;
+    string public title;
+
     event Winner(address winner, uint prize);
 
-    constructor(uint16 _expiration, address _gameCreator) payable {
-        require(msg.value > 0);
+    // constructor(uint16 _expiration, address _gameCreator) payable {
+    //     require(msg.value > 0);
+    //     expiration = _expiration;
+    //     betSize = msg.value;
+    //     player1.player = payable(_gameCreator);
+    // }
+
+    constructor(
+        address _creator,
+        uint16 _expiration,
+        uint _betSize,
+        string _title
+    ) {
+        betSize = _betSize;
         expiration = _expiration;
-        betSize = msg.value;
-        player1.player = payable(_gameCreator);
+        title = _title;
+        player1.player = _creator;
     }
 
     function _win(address payable _player) private {
@@ -42,17 +56,23 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         _same = _commit == keccak256(abi.encodePacked(_hand, _salt));
     }
 
-    function participate()
-        external
-        payable
-    {
+    function participate() external {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
-        require(msg.value == betSize, "Failed to join game, different bet");
 
         player2.player = payable(_msgSender());
         emit UpdatePlayer(player2.player, player2.commit, player2.hand);
-        _setPhase(Phase.Commit);
+        _setPhase(Phase.Bet);
         _setPhaseExpiration();
+    }
+
+    function bet()
+        external
+        payable
+        onlyParticipants
+    {
+        require(phase == Phase.Bet, "Failed to bet, game is not int betting phase");
+        require(msg.value == betSize(), "Failed to bet, insufficient balance to bet");
+        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
     }
 
     function commit(bytes32 _commit)

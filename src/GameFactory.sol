@@ -2,19 +2,33 @@
 pragma solidity ^0.8.20;
 
 import "src/Game.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
 
-contract GameFactory {
-    uint16 MIN_EXPIR = 60 * 5;
+contract GameFactory is Context {
+    uint16 immutable MIN_EXPIRE = 60 * 5;
+    uint16 immutable MAX_EXPIRE = 60 * 60;
     mapping (address => uint) gameCount;
     event NewGame(address indexed creator, address game);
 
-    function createGame(uint _gameNumber, uint16 _expiration) external payable returns (address _gameAddress) {
-        require(msg.value > 0, "Failed to create game, no balance for game");
-        require(_expiration >= MIN_EXPIR, "Failed to create game, expiration is too short");
-        Game game = new Game{salt: bytes32(_gameNumber), value: msg.value}(_expiration, msg.sender);
-        gameCount[msg.sender]++;
+    function createGame(
+        uint16 _expiration,
+        uint _betSize,
+        string _title
+    )
+        external
+        returns (address _gameAddress)
+    {
+        require(
+            _expiration >= MIN_EXPIRE
+            && _expiration < MAX_EXPIRE
+            , "Failed to create game, unavailable expiration"
+        );
+        require(_betSize > 0, "Failed to create game, invalid betSize");
+        uint storage gameCountOfAddress = gameCount[_msgSender()];
+        Game game = new Game{salt: bytes32(gameCountOfAddress)}(_msgSender, _expiration, _betSize, _title);
+        gameCountOfAddress++;
         _gameAddress = address(game);
-        emit NewGame(msg.sender, _gameAddress);
+        emit NewGame(_msgSender(), _gameAddress);
     }
 
     function getGameAddress(uint _expiration, uint _gameNumber, address _gameCreator) external view returns (address game) {
