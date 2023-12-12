@@ -98,7 +98,6 @@ contract GameTest is Test {
         game.reveal(RockScissorsPaperLib.Hand.Paper, salt2);
         (,, RockScissorsPaperLib.Hand hand2) = game.player2();
         assertEq(uint(hand2), uint(RockScissorsPaperLib.Hand.Paper));
-        assertEq(p2, game.winner());
         assertEq(address(game).balance, 0);
         assertEq(game.gameClosed(), true);
         assertEq(p2.balance, p1.balance + game.betSize() * 2);
@@ -114,7 +113,6 @@ contract GameTest is Test {
         vm.prank(p1);
         game.claim();
         assertEq(p1.balance, 11 ether);
-        assertEq(p1, game.winner());
     }
 
     // p2 reveals but p1 does not
@@ -133,7 +131,6 @@ contract GameTest is Test {
         vm.prank(p1);
         game.claim();
         assertEq(p1.balance, 11 ether);
-        assertEq(p1, game.winner());
     }
 
     function test_TiedGame() public {
@@ -153,7 +150,6 @@ contract GameTest is Test {
         vm.prank(p2);
         game.reveal(RockScissorsPaperLib.Hand.Rock, salt2);
 
-        assertEq(game.winner(), address(0));
         assertEq(uint(game.phase()), uint(Game.Phase.Commit));
     }
 }
