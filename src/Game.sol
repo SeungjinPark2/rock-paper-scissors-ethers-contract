@@ -13,8 +13,10 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
 
     uint public betSize;
     string public title;
+    bool terminated;
 
-    event Winner(address winner, uint prize);
+    event Winner(address indexed winner, address indexed challenger, uint prize);
+    event Terminate(bool term);
 
     // constructor(uint16 _expiration, address _gameCreator) payable {
     //     require(msg.value > 0);
@@ -22,6 +24,11 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     //     betSize = msg.value;
     //     player1.player = payable(_gameCreator);
     // }
+
+    modifier checkNotTerminated() {
+        require (terminated != true, "The game is terminated");
+        _;
+    }
 
     constructor(
         address _creator,
@@ -40,14 +47,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         emit Winner(_player, betSize * 2);
     }
 
-    // if phase was expiered, then
-    function _checkPhaseExpired(address _player) private {
-        if (block.timestamp > phaseExpiration) {
-            (,Player storage opponent) = _getPlayer(_player);
-            _win(opponent.player);
-        }
-    }
-
+    // TODO: library
     function _checkCommit(bytes32 _commit, RockScissorsPaperLib.Hand _hand, bytes32 _salt)
         private
         pure
@@ -56,34 +56,51 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         _same = _commit == keccak256(abi.encodePacked(_hand, _salt));
     }
 
-    function participate() external {
+    function participate()
+        external
+        checkNotTerminated
+    {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
 
         player2.player = payable(_msgSender());
         emit UpdatePlayer(player2.player, player2.commit, player2.hand);
+
         _setPhase(Phase.Bet);
+        _initPhaseClock();
         _setPhaseExpiration();
     }
 
+    /// @dev onlyParticipants check must be prior to checkPhaseExpired
     function bet()
         external
         payable
+        checkNotTerminated
         onlyParticipants
+        checkPhaseExpired
     {
         require(phase == Phase.Bet, "Failed to bet, game is not int betting phase");
         require(msg.value == betSize(), "Failed to bet, insufficient balance to bet");
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
+
+        // _checkPhaseExpired(_msgSender());
+        self.betDone = true;
+
+        if (opponent.betDone == true) {
+            _setPhase(Phase.Commit);
+            _setPhaseExpiration();
+        }
     }
 
     function commit(bytes32 _commit)
         external
+        checkNotTerminated
         onlyParticipants
+        checkPhaseExpired
     {
         require(phase == Phase.Commit, "Failed to commit, game phase is reveal or participate");
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
         require(self.commit == bytes32(0), "msg.sender already committed");
 
-        _checkPhaseExpired(_msgSender());
         self.commit = _commit;
         emit UpdatePlayer(self.player, self.commit, self.hand);
 
@@ -94,36 +111,18 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         }
     }
 
-    // If opponent does not take any steps within commit or reveal phase after phase expiered,
-    // participant can claim his/her win.
-    function claim()
-        external
-        onlyParticipants
-        nonReentrant
-    {
-        require(phase != Phase.Participate, "Failed to claim, game is not in process");
-        require(block.timestamp > phaseExpiration, "Failed to claim, the game phase is not expired");
-
-        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
-
-        phase == Phase.Commit
-            ? require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully")
-            : require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
-
-        _win(self.player);
-    }
-
     function reveal(RockScissorsPaperLib.Hand _hand, bytes32 _salt)
         external
         onlyParticipants
+        checkNotTerminated
+        checkPhaseExpired
         nonReentrant
     {
         require(phase == Phase.Reveal, "Failed to reveal, game phase is commit or participate");
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
         require(self.hand == RockScissorsPaperLib.Hand.Empty, "Failed to reveal, sender already revealed");
-
-        _checkPhaseExpired(_msgSender());
         require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
+
         self.hand = _hand;
         emit UpdatePlayer(self.player, self.commit, self.hand);
 
@@ -145,16 +144,30 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         }
     }
 
-    function leave()
+    function claimOpponentVanished()
         external
+        checkNotTerminated
         onlyParticipants
         nonReentrant
     {
-        if (phase == Phase.Participate) {
-            player1.player.sendValue(betSize);
-        } else {
-            (, Player storage opponent) = _getPlayer(_msgSender());
-            _win(opponent.player);
-        }
+        require(phase != Phase.Participate, "Failed to claim, game is not in process");
+        require(block.timestamp > phaseExpiration, "Failed to claim, the game phase is not expired");
+
+        (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
+
+        phase == Phase.Commit
+            ? require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully")
+            : require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
+
+        _win(self.player);
+    }
+
+    function terminate()
+        public
+        onlyGameCreator
+    {
+        require(phase == Phase.Participate, "Failed to terminate game, the game is on going");
+        terminated = true;
+        emit Terminate(terminated);
     }
 }

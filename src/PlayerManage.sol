@@ -23,6 +23,14 @@ contract PlayerManage is Context {
         _;
     }
 
+    modifier onlyGameCreator() {
+        require(
+            player1.player == _msgSender(),
+            "msg.sender is not a game creator"
+        );
+        _;
+    }
+
     event UpdatePlayer(address indexed player, bytes32 commit, RockScissorsPaperLib.Hand hand);
 
     function _getPlayer(address _player)
