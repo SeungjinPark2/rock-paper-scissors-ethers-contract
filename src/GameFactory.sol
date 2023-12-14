@@ -12,8 +12,7 @@ contract GameFactory is Context {
 
     function createGame(
         uint16 _expiration,
-        uint _betSize,
-        string _title
+        uint _betSize
     )
         external
         returns (address _gameAddress)
@@ -24,9 +23,9 @@ contract GameFactory is Context {
             , "Failed to create game, unavailable expiration"
         );
         require(_betSize > 0, "Failed to create game, invalid betSize");
-        uint storage gameCountOfAddress = gameCount[_msgSender()];
-        Game game = new Game{salt: bytes32(gameCountOfAddress)}(_msgSender, _expiration, _betSize, _title);
-        gameCountOfAddress++;
+        uint gameCountOfAddress = gameCount[_msgSender()];
+        Game game = new Game{salt: bytes32(gameCountOfAddress)}(_msgSender(), _expiration, _betSize);
+        gameCount[_msgSender()]++;
         _gameAddress = address(game);
         emit NewGame(_msgSender(), _gameAddress);
     }

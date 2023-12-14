@@ -12,39 +12,39 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     using Address for address payable;
 
     uint public betSize;
-    string public title;
     bool terminated;
 
-    event Winner(address indexed winner, address indexed challenger, uint prize);
+    event Winner(address indexed winner, uint prize);
     event Terminate(bool term);
-
-    // constructor(uint16 _expiration, address _gameCreator) payable {
-    //     require(msg.value > 0);
-    //     expiration = _expiration;
-    //     betSize = msg.value;
-    //     player1.player = payable(_gameCreator);
-    // }
 
     modifier checkNotTerminated() {
         require (terminated != true, "The game is terminated");
         _;
     }
 
+    /// @dev Hard -> two of one has leaved game.
+    /// @dev Medium -> game epoch reached to end.
+    /// @dev soft -> both are tied on reveal.
+    enum ResetType {
+        Hard,
+        Medium,
+        Soft
+    }
+
     constructor(
         address _creator,
         uint16 _expiration,
-        uint _betSize,
-        string _title
+        uint _betSize
     ) {
         betSize = _betSize;
         expiration = _expiration;
-        title = _title;
-        player1.player = _creator;
+        player1.player = payable(_creator);
     }
 
     function _win(address payable _player) private {
-        _player.sendValue(betSize * 2);
-        emit Winner(_player, betSize * 2);
+        uint amount = address(this).balance;
+        _player.sendValue(amount);
+        emit Winner(_player, amount);
     }
 
     // TODO: library
@@ -56,6 +56,38 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         _same = _commit == keccak256(abi.encodePacked(_hand, _salt));
     }
 
+    function _resetGame(ResetType _resetType) internal {
+        if (_resetType == ResetType.Hard) {
+            if (_msgSender() == player2.player) {
+                player1.player = player2.player;
+            }
+            delete player2;
+            delete player1.commit;
+            delete player1.hand;
+            delete player1.betDone;
+            delete phaseExpiration;
+            _setPhase(Phase.Participate);
+        } else if (_resetType == ResetType.Medium) {
+            delete player2.commit;
+            delete player2.hand;
+            delete player2.betDone;
+            delete player1.commit;
+            delete player1.hand;
+            delete player1.betDone;
+            _setPhase(Phase.Bet);
+            _setPhaseExpiration();
+        } else {
+            delete player2.commit;
+            delete player2.hand;
+            delete player1.commit;
+            delete player1.hand;
+            _setPhase(Phase.Commit);
+            _setPhaseExpiration();
+        }
+        emit UpdatePlayer(player1.player);
+        emit UpdatePlayer(player2.player);
+    }
+
     function participate()
         external
         checkNotTerminated
@@ -63,7 +95,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
 
         player2.player = payable(_msgSender());
-        emit UpdatePlayer(player2.player, player2.commit, player2.hand);
+        emit UpdatePlayer(player2.player);
 
         _setPhase(Phase.Bet);
         _initPhaseClock();
@@ -79,10 +111,9 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         checkPhaseExpired
     {
         require(phase == Phase.Bet, "Failed to bet, game is not int betting phase");
-        require(msg.value == betSize(), "Failed to bet, insufficient balance to bet");
+        require(msg.value == betSize, "Failed to bet, insufficient balance to bet");
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
 
-        // _checkPhaseExpired(_msgSender());
         self.betDone = true;
 
         if (opponent.betDone == true) {
@@ -102,7 +133,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(self.commit == bytes32(0), "msg.sender already committed");
 
         self.commit = _commit;
-        emit UpdatePlayer(self.player, self.commit, self.hand);
+        emit UpdatePlayer(self.player);
 
         // check opponent submitted commit
         if (opponent.commit != bytes32(0)) {
@@ -124,22 +155,17 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
 
         self.hand = _hand;
-        emit UpdatePlayer(self.player, self.commit, self.hand);
+        emit UpdatePlayer(self.player);
 
         if (opponent.hand != RockScissorsPaperLib.Hand.Empty) {
             (bool tied, bool won) = self.hand.checkWin(opponent.hand);
             if (tied) {
-                delete self.commit;
-                delete self.hand;
-                delete opponent.commit;
-                delete opponent.hand;
-                emit UpdatePlayer(self.player, self.commit, self.hand);
-                emit UpdatePlayer(opponent.player, opponent.commit, opponent.hand);
-                _setPhase(Phase.Commit);
+                _resetGame(ResetType.Soft);
             } else {
                 won == true
                     ? _win(self.player)
                     : _win(opponent.player);
+                _resetGame(ResetType.Medium);
             }
         }
     }
@@ -152,21 +178,25 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     {
         require(phase != Phase.Participate, "Failed to claim, game is not in process");
         require(block.timestamp > phaseExpiration, "Failed to claim, the game phase is not expired");
-
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
 
-        phase == Phase.Commit
-            ? require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully")
-            : require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
-
+        if (phase == Phase.Bet) {
+            require(opponent.betDone == false, "Failed to claim, opponent committed successfully");
+        } else if (phase == Phase.Commit) {
+            require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully");
+        } else {
+            require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");
+        }
         _win(self.player);
+        _resetGame(ResetType.Hard);
     }
 
     function terminate()
-        public
+        external
         onlyGameCreator
     {
         require(phase == Phase.Participate, "Failed to terminate game, the game is on going");
+        require(terminated == false, "Failed to terminate game, already terminated");
         terminated = true;
         emit Terminate(terminated);
     }

@@ -31,7 +31,7 @@ contract PlayerManage is Context {
         _;
     }
 
-    event UpdatePlayer(address indexed player, bytes32 commit, RockScissorsPaperLib.Hand hand);
+    event UpdatePlayer(address player);
 
     function _getPlayer(address _player)
         internal
