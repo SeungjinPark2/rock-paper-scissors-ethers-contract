@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 contract PhaseManage {
     enum Phase {
         Participate,
+        Bet,
         Commit,
         Reveal
     }
@@ -11,9 +12,14 @@ contract PhaseManage {
     Phase public phase;
 
     uint16 expiration;
-    uint32 phaseExpiration;
+    uint public phaseExpiration;
 
     event PhaseChanged(Phase phase);
+
+    modifier checkPhaseExpired() {
+        require(block.timestamp < phaseExpiration, "Phase is already expired");
+        _;
+    }
 
     function _setPhase(Phase _phase) internal {
         phase = _phase;
@@ -21,6 +27,10 @@ contract PhaseManage {
     }
 
     function _setPhaseExpiration() internal {
-        phaseExpiration += uint32(expiration);
+        phaseExpiration += uint(expiration);
+    }
+
+    function _initPhaseClock() internal {
+        phaseExpiration = block.timestamp;
     }
 }

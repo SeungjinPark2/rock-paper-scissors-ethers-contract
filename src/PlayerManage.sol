@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 contract PlayerManage is Context {
     struct Player {
         address payable player;
+        bool betDone;
         bytes32 commit;
         RockScissorsPaperLib.Hand hand;
     }
@@ -22,7 +23,15 @@ contract PlayerManage is Context {
         _;
     }
 
-    event UpdatePlayer(address player, bytes32 commit, RockScissorsPaperLib.Hand hand);
+    modifier onlyGameCreator() {
+        require(
+            player1.player == _msgSender(),
+            "msg.sender is not a game creator"
+        );
+        _;
+    }
+
+    event UpdatePlayer(address player);
 
     function _getPlayer(address _player)
         internal
