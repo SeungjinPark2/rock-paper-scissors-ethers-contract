@@ -1,5 +1,5 @@
 # Rock Scissors Paper On Smart Contract
-This repository is smart contract development of rock-scissors-paper powered by blockchain analogy. \
+This repository is smart contract development of rock-scissors-paper powered by blockchain. \
 Players can create a game which alikes room with size of betting. \
 If opponent participate in the game, they start rock-scissors-paper with 3 steps - bet, commit, reveal.
 
