@@ -11,13 +11,13 @@ contract PhaseManage {
 
     Phase public phase;
 
-    uint16 immutable expiration;
-    uint phaseExpiration;
+    uint16 expiration;
+    uint public phaseExpiration;
 
     event PhaseChanged(Phase phase);
 
     modifier checkPhaseExpired() {
-        require(block.timestamp > phaseExpiration, "Phase is already expired");
+        require(block.timestamp < phaseExpiration, "Phase is already expired");
         _;
     }
 

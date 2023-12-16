@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/utils/Context.sol";
 contract PlayerManage is Context {
     struct Player {
         address payable player;
-        bytes32 commit;
         bool betDone;
+        bytes32 commit;
         RockScissorsPaperLib.Hand hand;
     }
 

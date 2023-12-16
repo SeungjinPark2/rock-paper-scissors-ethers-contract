@@ -184,7 +184,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         if (phase == Phase.Bet) {
             require(opponent.betDone == false, "Failed to claim, opponent committed successfully");
         } else {
-            else if (phase == Phase.Commit) {
+            if (phase == Phase.Commit) {
                 require(opponent.commit == bytes32(0), "Failed to claim, opponent committed successfully");
             } else {
                 require(opponent.hand == RockScissorsPaperLib.Hand.Empty, "Failed to claim, opponent revealed successfully");

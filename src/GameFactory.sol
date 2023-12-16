@@ -30,16 +30,16 @@ contract GameFactory is Context {
         emit NewGame(_msgSender(), _gameAddress);
     }
 
-    function getGameAddress(uint _expiration, uint _gameNumber, address _gameCreator) external view returns (address game) {
-        bytes memory _bytecode = getBytecode(_expiration, _gameCreator);
+    function getGameAddress(address _gameCreator, uint _expiration, uint _betSize, uint _gameNumber) external view returns (address game) {
+        bytes memory _bytecode = getBytecode(_gameCreator, _expiration, _betSize);
         bytes32 hash = keccak256(
            abi.encodePacked(bytes1(0xff), address(this), _gameNumber, keccak256(_bytecode))
         );
         game = address(uint160(uint(hash)));
     }
 
-    function getBytecode(uint _expiration, address _gameCreator) public pure returns (bytes memory _bytecode) {
+    function getBytecode(address _gameCreator, uint _expiration, uint _betSize) public pure returns (bytes memory _bytecode) {
         bytes memory bytecode = type(Game).creationCode;
-        _bytecode =  abi.encodePacked(bytecode, abi.encode(_expiration, _gameCreator));
+        _bytecode =  abi.encodePacked(bytecode, abi.encode(_gameCreator, _expiration, _betSize));
     }
 }
