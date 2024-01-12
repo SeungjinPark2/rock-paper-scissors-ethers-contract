@@ -12,7 +12,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     using Address for address payable;
 
     uint public betSize;
-    bool terminated;
+    bool public terminated;
 
     event Winner(address indexed winner, uint prize);
     event Terminate(bool term);
@@ -58,8 +58,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         delete player1.betDone;
         delete phaseExpiration;
         _setPhase(Phase.Participate);
-        emit UpdatePlayer(player1.player);
-        emit UpdatePlayer(player2.player);
+        _emitUpdatePlayers();
     }
 
     /// @dev Medium -> game epoch reached to end.
@@ -72,8 +71,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         delete player1.betDone;
         _setPhase(Phase.Bet);
         _setPhaseExpiration();
-        emit UpdatePlayer(player1.player);
-        emit UpdatePlayer(player2.player);
+        _emitUpdatePlayers();
     }
 
     /// @dev soft -> both are tied on reveal.
@@ -84,8 +82,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         delete player1.hand;
         _setPhase(Phase.Commit);
         _setPhaseExpiration();
-        emit UpdatePlayer(player1.player);
-        emit UpdatePlayer(player2.player);
+        _emitUpdatePlayers();
     }
 
     /// @dev player1 is already participated when this contract is being deployed.
@@ -96,7 +93,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(phase == Phase.Participate, "Failed to join game, game is already in process");
 
         player2.player = payable(_msgSender());
-        emit UpdatePlayer(player2.player);
+        _emitUpdatePlayers();
 
         _setPhase(Phase.Bet);
         _initPhaseClock();
@@ -116,6 +113,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         (Player storage self, Player storage opponent) = _getPlayer(_msgSender());
 
         self.betDone = true;
+        _emitUpdatePlayers();
 
         if (opponent.betDone == true) {
             _setPhase(Phase.Commit);
@@ -134,7 +132,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(self.commit == bytes32(0), "msg.sender already committed");
 
         self.commit = _commit;
-        emit UpdatePlayer(self.player);
+        _emitUpdatePlayers();
 
         // check opponent submitted commit
         if (opponent.commit != bytes32(0)) {
@@ -156,7 +154,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         require(_checkCommit(self.commit, _hand, _salt), "Failed to reveal, msg.sender's reveal is wrong");
 
         self.hand = _hand;
-        emit UpdatePlayer(self.player);
+        _emitUpdatePlayers();
 
         if (opponent.hand != RockScissorsPaperLib.Hand.Empty) {
             (bool tied, bool won) = self.hand.checkWin(opponent.hand);

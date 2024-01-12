@@ -31,7 +31,11 @@ contract PlayerManage is Context {
         _;
     }
 
-    event UpdatePlayer(address player);
+    event UpdatePlayers(Player player1, Player player2);
+
+    function _emitUpdatePlayers() internal {
+        emit UpdatePlayers(player1, player2);
+    }
 
     function _getPlayer(address _player)
         internal
