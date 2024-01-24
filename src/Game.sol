@@ -96,7 +96,6 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
         _emitUpdatePlayers();
 
         _setPhase(Phase.Bet);
-        _initPhaseClock();
         _setPhaseExpiration();
     }
 

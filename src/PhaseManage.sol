@@ -27,10 +27,10 @@ contract PhaseManage {
     }
 
     function _setPhaseExpiration() internal {
-        phaseExpiration += uint(expiration);
+        phaseExpiration = block.timestamp + uint(expiration);
     }
 
-    function _initPhaseClock() internal {
-        phaseExpiration = block.timestamp;
-    }
+    //function _initPhaseClock() internal {
+    //    phaseExpiration = block.timestamp;
+    //}
 }
