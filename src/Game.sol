@@ -15,6 +15,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
     bool public terminated;
 
     event Winner(address indexed winner, uint prize);
+    event Tied();
     event Terminate(bool term);
 
     modifier checkNotTerminated() {
@@ -159,6 +160,7 @@ contract Game is ReentrancyGuard, PlayerManage, PhaseManage {
             (bool tied, bool won) = self.hand.checkWin(opponent.hand);
             if (tied) {
                 _resetSoft();
+                emit Tied();
             } else {
                 won == true
                     ? _win(self.player)
